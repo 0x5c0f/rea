@@ -187,6 +187,8 @@ const call = async (name, arguments_) => {
 };
 const normalized = (value) => value.normalized_result;
 const targetSha = (value) => value.subject?.digest.sha256;
+const inventoryPaths = ["package.json", "main.js", "preload.js"];
+const unique = (values) => [...new Set(values)].sort();
 
 const workflows = {
   "obsidian.asar": async () => {
@@ -197,46 +199,92 @@ const workflows = {
         values.delivery === "summary" ? { detail: "summary" } : {},
       );
       if (values.delivery === "summary") {
-        const parent = normalized(inspected).parent_evidence_id;
+        const view = normalized(inspected);
+        const summary = view.summary;
+        if (!summary.source_complete || !summary.inspection)
+          throw new Error(
+            "Expected a complete inventory with inspection coverage",
+          );
+        const parent = view.parent_evidence_id;
         const selected = await call("inspect_analysis_view", {
           source: { kind: "retained-evidence", evidence_id: parent },
           view: {
             kind: "inventory",
             collection: "occurrences",
-            logical_paths: ["package.json", "main.js", "preload.js"],
+            logical_paths: inventoryPaths,
             offset: 0,
             limit: 64,
           },
         });
+        const contradictions = [];
+        let offset = 0;
+        while (offset < summary.available_counts.integrity_contradictions) {
+          const page = normalized(
+            await call("inspect_analysis_view", {
+              source: { kind: "retained-evidence", evidence_id: parent },
+              view: {
+                kind: "inventory",
+                collection: "integrity_contradictions",
+                offset,
+                limit: 64,
+              },
+            }),
+          );
+          contradictions.push(...page.items);
+          if (page.coverage.exhausted) break;
+          if (
+            page.coverage.next_offset === null ||
+            page.coverage.next_offset <= offset
+          )
+            throw new Error("Inventory page did not advance");
+          offset = page.coverage.next_offset;
+        }
         return {
           artifact_sha256: targetSha(inspected),
-          summary: normalized(inspected),
+          manifest: summary.manifest,
+          source_complete: summary.source_complete,
+          entry_kind_counts: summary.observed_entry_kind_counts,
           requested_paths: normalized(selected).items,
+          inventory_evidence_ids: summary.inventory_evidence_ids,
+          integrity_contradictions: contradictions,
+          coverage: summary.inspection.coverage,
+          unexplored_branches: summary.inspection.unexplored_branches,
+          limitations: view.limitations,
           evidence_ids: [inspected.evidence_id, selected.evidence_id],
         };
       }
       const inspection = normalized(inspected);
       const inventory = inspection.substeps[0].evidence;
       const graph = normalized(inventory);
-      const counts = {};
-      for (const row of graph.occurrences)
-        counts[row.entry_kind] = (counts[row.entry_kind] ?? 0) + 1;
+      const counts = { file: 0, directory: 0, symlink: 0, slice: 0 };
+      for (const row of graph.occurrences) counts[row.entry_kind]++;
+      const { parseArtifactInventoryEvidence } = await import(
+        pathToFileURL(
+          resolve(
+            values["runtime-root"],
+            "dist/domain/artifactInventoryEvidence.js",
+          ),
+        ).href
+      );
+      const checked = parseArtifactInventoryEvidence(inventory);
       return {
         artifact_sha256: targetSha(inspected),
         manifest: graph.manifest,
+        source_complete: checked.inventory.complete,
         entry_kind_counts: counts,
         requested_paths: graph.occurrences.filter((row) =>
-          ["package.json", "main.js", "preload.js"].includes(row.logical_path),
+          inventoryPaths.includes(row.logical_path),
         ),
+        inventory_evidence_ids: [inventory.evidence_id],
         integrity_contradictions: graph.integrity_contradictions,
         coverage: inspection.coverage,
         unexplored_branches: inspection.unexplored_branches,
         evidence_ids: [inspected.evidence_id, inventory.evidence_id],
-        limitations: [
+        limitations: unique([
           ...inspected.limitations,
           ...inspection.limitations,
           ...inventory.limitations,
-        ],
+        ]),
       };
     } finally {
       await call("close_binary", {});

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { artifactInventorySummaryViewResultSchema } from "../domain/analysisView/analysisView.js";
 import { evidenceBundleSummarySchema } from "../domain/evidenceRecordSummary.js";
 import { BINARY_ARCHITECTURES } from "../domain/binaryTargetTypes.js";
 import {
@@ -385,7 +386,12 @@ export const nativeOutputSchemas: Readonly<Record<string, z.ZodObject>> = {
 
 /** Exact Evidence schemas for provider-neutral artifact graph operations. */
 export const artifactOutputSchemas: Readonly<Record<string, z.ZodObject>> = {
-  inspect_artifact: evidenceResultOf(artifactInspectionOutputSchema),
+  inspect_artifact: evidenceResultOf(
+    z.union([
+      artifactInspectionOutputSchema,
+      artifactInventorySummaryViewResultSchema,
+    ]),
+  ),
   extract_artifact: evidenceResultOf(artifactExtractionResultSchema),
   decode_interface_builder: evidenceResultOf(interfaceBuilderAnalysisSchema),
   inspect_keyed_archive: evidenceResultOf(keyedArchiveResultSchema),

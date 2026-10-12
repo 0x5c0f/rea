@@ -253,17 +253,28 @@ const viewResultBase = {
   unknowns: z.array(z.string()),
 } as const;
 
+const summaryViewResultBase = {
+  kind: z.literal("summary"),
+  view: summaryViewSchema,
+  ...viewResultBase,
+} as const;
+
+/** Exact summary carrier for artifact inspection's optional delivery contract. */
+export const artifactInventorySummaryViewResultSchema = z.strictObject({
+  ...summaryViewResultBase,
+  parent_operation: z.enum(["inspect_artifact", "inventory_artifact"]),
+  summary: inventorySummarySchema,
+});
+
 /** Projected facts for one selected view of retained analysis Evidence. */
 export const analysisViewResultSchema = z.discriminatedUnion("kind", [
   z.strictObject({
-    kind: z.literal("summary"),
-    view: summaryViewSchema,
+    ...summaryViewResultBase,
     summary: z.union([
       layoutSummarySchema,
       javascriptSummarySchema,
       inventorySummarySchema,
     ]),
-    ...viewResultBase,
   }),
   z.strictObject({
     kind: z.literal("facet"),

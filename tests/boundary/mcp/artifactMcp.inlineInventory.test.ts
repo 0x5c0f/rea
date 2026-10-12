@@ -281,6 +281,43 @@ const assertPortableRoundtrip = async (
   );
 };
 
+const assertSummaryDelivery = async (
+  client: Client,
+  session: ReturnType<typeof createTestBinarySession>,
+  complete: Evidence,
+) => {
+  expect(complete.parameters).not.toHaveProperty("detail");
+  const reply = await client.callTool({
+    name: "inspect_artifact",
+    arguments: { detail: "summary" },
+  });
+  expect(reply.isError, JSON.stringify(reply.structuredContent)).not.toBe(true);
+  const projected = parseEvidence(reply.structuredContent);
+  const view = analysisViewResultSchema.parse(projected.normalized_result);
+  expect(projected.operation).toBe("inspect_analysis_view");
+  expect(view.kind).toBe("summary");
+  const retained = session.evidenceById(view.parent_evidence_id);
+  if (retained === undefined) throw new Error("Missing complete inspection");
+  expect(retained.operation).toBe("inspect_artifact");
+  expect(retained.parameters).toMatchObject({ detail: "summary" });
+  expect(retained.normalized_result).toEqual(complete.normalized_result);
+  expect(retained.evidence_id).not.toBe(projected.evidence_id);
+  const inspection = artifactInspectionResultSchema.parse(
+    retained.normalized_result,
+  );
+  expect(
+    session.evidenceById(inspection.substeps[0]?.evidence_id ?? ""),
+  ).toEqual(inspection.substeps[0]?.evidence);
+  const explicit = await client.callTool({
+    name: "inspect_artifact",
+    arguments: { detail: "complete" },
+  });
+  expect(explicit.isError).not.toBe(true);
+  expect(parseEvidence(explicit.structuredContent).normalized_result).toEqual(
+    complete.normalized_result,
+  );
+};
+
 it("keeps complete ZIP output and reads retained inventory views after the source is removed", async () => {
   const directory = await createTestTempDirectory("rea-artifact-inline-");
   const archive = join(directory, "many.zip");
@@ -314,6 +351,7 @@ it("keeps complete ZIP output and reads retained inventory views after the sourc
       true,
     );
     const parent = parseEvidence(result.structuredContent);
+    await assertSummaryDelivery(client, session, parent);
     const parsedInspection = artifactInspectionResultSchema.parse(
       parent.normalized_result,
     );
@@ -414,6 +452,49 @@ it("keeps complete ZIP output and reads retained inventory views after the sourc
       graph,
     });
     await assertPortableRoundtrip(client, directory, parent, summary.result);
+  } finally {
+    await client.close();
+    await server.close();
+    await session.close();
+  }
+});
+
+it("refuses summary delivery without a retained Evidence owner and preserves complete delivery", async () => {
+  const directory = await createTestTempDirectory("rea-inventory-fixed-");
+  const archive = join(directory, "fixture.zip");
+  const writer = new ZipWriter(new Uint8ArrayWriter());
+  await writer.add("main.js", new TextReader("console.log('fixed');\n"));
+  await writeFile(archive, await writer.close());
+  const session = createTestBinarySession(new ArtifactProvider(process.env));
+  const opened = await session.open(archive);
+  if (!opened.ok) throw opened.error;
+  const server = createServer({ kind: "fixed", analysis: session });
+  const client = new Client({ name: "artifact-fixed-test", version: "1" });
+  const [clientTransport, serverTransport] =
+    InMemoryTransport.createLinkedPair();
+  try {
+    await server.connect(serverTransport);
+    await client.connect(clientTransport);
+    const summary = await client.callTool({
+      name: "inspect_artifact",
+      arguments: { detail: "summary" },
+    });
+    expect(parseMcpToolError(summary)).toMatchObject({
+      error: {
+        code: "capability_unavailable",
+        message: expect.stringContaining("does not retain Evidence"),
+      },
+    });
+    const complete = await client.callTool({
+      name: "inspect_artifact",
+      arguments: {},
+    });
+    expect(complete.isError).not.toBe(true);
+    expect(
+      parseEvidence(complete.structuredContent).normalized_result,
+    ).toMatchObject({
+      substeps: [expect.objectContaining({ operation: "inventory_artifact" })],
+    });
   } finally {
     await client.close();
     await server.close();

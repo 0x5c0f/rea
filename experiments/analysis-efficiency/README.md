@@ -71,6 +71,22 @@ The default `complete` runs the existing calls unchanged. Compare the same
 analyst facts and complete source Evidence before crediting a smaller response.
 Projection can reduce delivery bytes without reducing upstream analysis time.
 
+Compare paired runs with the same runner source and provider settings:
+
+```sh
+node experiments/analysis-efficiency/compare.mjs \
+  --left /absolute/complete-run --right /absolute/summary-run \
+  --output /absolute/new-comparison.json
+```
+
+This checks all selected analyst facts, including inventory source IDs, exact
+path records, manifest, counts, completeness, contradictions, coverage,
+unexplored branches and limitations. It excludes only delivery observation IDs
+and the named recovery-path description. Different settings, changed facts or
+failed workflows make the comparator fail. Counts include extra view calls and
+observed tool errors. Use repeated runs with alternating order before claiming
+a distribution or a speedup; one pair is only one observation.
+
 For a completed WASM result exceeding the MCP response budget, the runner keeps
 the original error, exports retained Evidence through the public tool, and
 authenticates the exact reported record using the selected runtime's parser.

@@ -19,6 +19,10 @@ Other inventory collections are `nodes`, `edges` and
 a missing match in partial source Evidence does not establish absence. Use the
 returned parent Evidence ID for subsequent views and export before closing the
 session when the source must survive it.
+When `tools/list` advertises `inspect_artifact.detail`, request `"summary"` to
+retain its complete source and receive that view immediately. Without that
+advertised choice, keep the existing complete call. CLI inspection returns
+portable complete Evidence; save it before projecting a selected inline view.
 
 Use `record_unknown` to track unresolved questions in the user's investigation
 and name the authority or environment still required. Supply supporting and
