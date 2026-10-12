@@ -437,6 +437,20 @@ application and semantic coverage. The result carries a digest of the selected
 facts. Actual serialized size determines MCP transport admission: reduce the
 page size or export retained Evidence if the view is too large.
 
+Completed `inspect_artifact` and atomic `inventory_artifact` Evidence also
+support summary and inventory views. A summary reports the manifest's expected
+counts separately from available record counts, observed entry kinds, inventory
+Evidence IDs and inspection coverage. An inventory view selects `nodes`,
+`occurrences`, `edges`, or `integrity_contradictions`, with `offset` and `limit`
+defaulting to 0 and 64. For occurrences, optional `logical_paths` matches exact
+recorded strings: omission selects all available records; `[]` selects none.
+These selectors do not reopen the artifact or resolve filesystem paths.
+`source_complete` records whether the available inventory passes the complete
+graph checks. Exhausting a page from a partial source does not establish that
+unreturned paths are absent. Views carry their own Evidence IDs and preserve
+links to the original parent; complete producer output and historical inline
+Evidence input parsing retain their existing shapes.
+
 `trace_application_feature`, `trace_javascript_semantics`,
 `compare_application_versions`, `compare_source_to_bundle`, and
 `compare_javascript_export_shapes` accept complete inline application Evidence
