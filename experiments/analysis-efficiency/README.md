@@ -113,3 +113,26 @@ different runner source digests are not one paired statistical cohort.
 
 No cross-session engine database cache, default analyzer changes, external
 plugin loading, or broad plugin SDK is enabled by this experiment.
+
+## Obsidian delivery checkpoint
+
+The [recorded pairs](results/obsidian-20261012.json) compare frozen baseline
+`42b0ed12` and candidate `f1106181` in complete → summary and summary → complete
+order using the same runner source, bytes and provider settings. Both preserve
+every selected fact and the atomic inventory Evidence ID.
+
+| Measurement                                         |        Complete | Summary + exact path view |
+| --------------------------------------------------- | --------------: | ------------------------: |
+| Tool-result compact JSON, including lifecycle calls |   937,404 bytes |              16,322 bytes |
+| Tool calls per question                             |               3 |                         4 |
+| Complete catalog compact JSON                       | 2,326,609 bytes |           2,370,505 bytes |
+| Workflow elapsed, first pair                        |         11.04 s |                   10.23 s |
+| Workflow elapsed, second pair                       |         10.57 s |                   10.18 s |
+
+Reply JSON falls by about 98.3%; catalog JSON grows by about 1.9%. The two elapsed
+observations do not establish a statistical speedup. Inventory coverage and
+upstream byte acquisition are unchanged. The candidate remains opt-in; existing
+requests continue to deliver the complete inspection. Each run verifies the
+selected artifact's before/after digest and reports no observed OOM or task
+limit events. Source typing and projection improve selected delivery without
+introducing an engine database cache or an external plugin protocol.
